@@ -1,0 +1,62 @@
+# Xcode
+#
+# gitignore for Xcode projects.
+#
+# Exclude build products and user-specific data.
+
+## Build products
+build/
+*.xcarchive/
+*.ipa
+*.dSYM/
+
+## Generated Xcode files
+*.xcuserstate
+*.mode1v3
+*.mode2v3
+*.xcbkptlist
+*.xccheckout
+*.moved-aside
+DerivedData/
+.swiftpm/
+Package.resolved
+
+## Project-specific files
+# Xcode workspace
+*.xcworkspace/
+!*.xcworkspace/contents.xcworkspacedata
+!*.xcworkspace/xcshareddata/
+!*.xcworkspace/xcshareddata/swiftpm/
+!*.xcworkspace/xcshareddata/xcschemes/
+
+# Xcode project
+*.xcodeproj/
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcodeproj/xcshareddata/xcschemes/
+
+# User-specific files
+xcuserdata/
+
+# Swift Package Manager (SPM)
+.swiftpm/
+Package.resolved
+
+# CocoaPods
+Pods/
+!Podfile.lock
+
+# Carthage
+Carthage/Build/
+
+# Other files
+*.hmap
+*.gpx
+*.log
+*.swiftdoc
+*.swiftmodule
+*.swiftprof
+*.gcno
+*.gcda
+*.gch
+.DS_Store
