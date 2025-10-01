@@ -1,66 +1,93 @@
-//
-//  ContentView.swift
-//  PieceOfMind
-//
-//  Created by Ben Baumeister on 24.08.25.
-//
-
-import SwiftData
 import SwiftUI
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @State private var manager = DatabaseManager()
+    @State private var showAddPiece = false
+    @State private var showAddTag = false
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
+        TabView {
+            // Pieces Tab
+            NavigationView {
+                List {
+                    ForEach(manager.pieces, id: \.id) { piece in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(piece.title)
+                                .font(.headline)
+                            if let due = piece.dueDate {
+                                Text("Due: \(due.formatted(date: .abbreviated, time: .omitted))")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            if let desc = piece.description {
+                                Text(desc)
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                            }
+                            VStack(alignment: .leading) {
+                                let tags = manager.getTagsForPiece(piece: piece)
+                                ForEach(tags, id: \.id) { tag in
+                                    HStack {
+                                        Text(tag.label)
+                                            .padding(4)
+                                            .background(tag.color.opacity(0.2))
+                                            .cornerRadius(4)
+
+                                        // Only show the icon if it exists
+                                        if let iconName = tag.icon {
+                                            Image(systemName: iconName)
+                                                .padding(4)
+                                                .background(Color.gray.opacity(0.2))
+                                                .cornerRadius(4)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                .navigationTitle("Pieces")
+                .toolbar {
+                    Button {
+                        showAddPiece = true
                     } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+                        Label("Add Piece", systemImage: "plus")
                     }
                 }
-                .onDelete(perform: deleteItems)
-            }
-#if os(macOS)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-#endif
-            .toolbar {
-#if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
+                .sheet(isPresented: $showAddPiece) {
+                    AddPieceView(manager: manager)
                 }
-#endif
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+            }
+            .tabItem { Label("Pieces", systemImage: "doc.text") }
+
+            // Tags Tab
+            NavigationView {
+                List {
+                    ForEach(manager.tags, id: \.id) { tag in
+                        HStack {
+                            Circle()
+                                .fill(tag.color)
+                                .frame(width: 16, height: 16)
+                            Text(tag.label)
+                                .font(.body)
+                        }
+                        .padding(.vertical, 4)
                     }
                 }
+                .navigationTitle("Tags")
+                .toolbar {
+                    Button {
+                        showAddTag = true
+                    } label: {
+                        Label("Add Tag", systemImage: "plus")
+                    }
+                }
+                .sheet(isPresented: $showAddTag) {
+                    AddTagView(manager: manager)
+                }
             }
-        } detail: {
-            Text("Select an item")
+            .tabItem { Label("Tags", systemImage: "tag") }
         }
     }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
-        }
-    }
-}
-
-#Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }
