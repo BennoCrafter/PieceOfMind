@@ -1,6 +1,6 @@
 import Cocoa
 
-class FileItemView: NSTableCellView {
+class TagItemView: NSTableCellView {
     private let icon = NSImageView()
     private let field = NSTextField()
 

@@ -45,7 +45,7 @@ struct ContentView: View {
                     bottom: 0,
                     right: 0)
             }) { fileItem in
-                FileItemView(fileItem: fileItem)
+                TagItemView(fileItem: fileItem)
             }
             .outlineViewStyle(.inset)
             .outlineViewIndentation(20)
