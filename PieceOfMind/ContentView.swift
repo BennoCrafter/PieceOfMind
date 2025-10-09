@@ -57,8 +57,12 @@ struct HierarchicalDragDropView: View {
 
                 switch operation {
                 case .on:
-                    // Allow dropping onto any item to become its child
-                    allowDrop = destination != nil
+                    // Example: check if dropping onto itself
+                    if let dest = destination, source.id == dest.id {
+                        allowDrop = false
+                    } else {
+                        allowDrop = destination != nil
+                    }
                 case .above:
                     // Allow inserting as sibling if we have a destination context (destination may be nil for root)
                     allowDrop = true
