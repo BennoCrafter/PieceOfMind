@@ -7,7 +7,7 @@ struct ContentView: View {
 }
 
 // Hierarchical drag and drop example
-struct HierarchicalItem: AKListItem {
+struct HierarchicalItem: AKListItem, Equatable {
     let id: UUID
     let name: String
     var children: [HierarchicalItem]
@@ -35,6 +35,7 @@ struct HierarchicalDragDropView: View {
     @State private var selection = Set<UUID>()
 
     var body: some View {
+        // ✅ Wrap in an AKSection
         AKList(items, selection: $selection, flat: false) { item in
             HStack {
                 Image(systemName: item.children.isEmpty ? "doc" : "folder")
@@ -43,44 +44,41 @@ struct HierarchicalDragDropView: View {
             .padding(.vertical, 4)
             .akListContextMenu {
                 Button("Duplicate") {
-                    print("DUplicate")
+                    print("Duplicate")
                 }
                 Button("Delete") {
-                    print("Delte")
+                    print("Delete")
                 }
             }
         }
-
-        .akListEnableDragDrop { draggedItem, destItem, operation in
-            print("Moving item \(draggedItem.name) to \(destItem.name)")
-            // Handle hierarchical moves
-            if operation == .on {
-                // Move into the destination item as a child
-                moveItemIntoParent(draggedItem, parent: destItem)
+        .akListEnableDragDropWithIndex { draggedItem, destinationItem, operation, dropIndex in
+            if let destinationItem {
+                print("Moving \(draggedItem.name) to \(destinationItem.name) at index \(dropIndex ?? -1) --> operation: \(operation.rawValue)")
             } else {
-                // Move as sibling
-                moveItemAsSibling(draggedItem, sibling: destItem)
+                print("Moving \(draggedItem.name) to root at index \(dropIndex ?? -1)")
+            }
+
+            if operation == .on, let destinationItem {
+                moveItemIntoParent(draggedItem, parent: destinationItem)
+            } else if let destinationItem {
+                moveItemAsSibling(draggedItem, sibling: destinationItem)
             }
             return true
         }
         .akListAllowCrossSectionDrag(true)
     }
 
-    func moveItemIntoParent(_ item: HierarchicalItem, parent: HierarchicalItem) {
-        // Remove from current location
-        removeItem(item, from: &items)
+    // MARK: - Move helpers
 
-        // Add to parent's children
+    func moveItemIntoParent(_ item: HierarchicalItem, parent: HierarchicalItem) {
+        removeItem(item, from: &items)
         if let parentIndex = findItemIndex(parent.id, in: items) {
             items[parentIndex].children.append(item)
         }
     }
 
     func moveItemAsSibling(_ item: HierarchicalItem, sibling: HierarchicalItem) {
-        // Remove from current location
         removeItem(item, from: &items)
-
-        // Find sibling and insert next to it
         if let siblingIndex = findItemIndex(sibling.id, in: items) {
             items.insert(item, at: siblingIndex + 1)
         }
@@ -101,8 +99,8 @@ struct HierarchicalDragDropView: View {
             if item.id == id {
                 return index
             }
-            if let _ = findItemIndex(id, in: item.children) {
-                return nil // Found in children, not at this level
+            if let idx = findItemIndex(id, in: item.children) {
+                return idx
             }
         }
         return nil

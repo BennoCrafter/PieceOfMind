@@ -30,30 +30,19 @@ private let maxReuseSlots = 2
 
 /// Callback type for handling item moves during drag and drop operations
 /// Parameters: source item, destination item, drop operation type
-typealias AKListMoveHandler<Item: AKListItem> = (Item, Item, NSTableView.DropOperation) -> Bool
+typealias AKListMoveHandlerWithIndex<Item: AKListItem> = (Item, Item?, NSTableView.DropOperation, Int?) -> Bool
 
 /// Callback type for handling item moves with section information
 /// Parameters: source item, source section index, destination index, destination section index
 typealias AKListDetailedMoveHandler<Item: AKListItem> = (Item, Int, Int, Int) -> Bool
 
-/// Configuration for drag and drop behavior
 struct AKListDragDropConfig<Item: AKListItem> {
-    /// Enable drag and drop functionality
     var enabled: Bool = false
-
-    /// Allowed drag types (default is universal type for internal reordering)
     var dragTypes: [NSPasteboard.PasteboardType] = [.string]
-
-    /// Callback when an item move is requested
-    var onMove: AKListMoveHandler<Item>?
-
-    /// Detailed callback with section information
+    var onMove: AKListMoveHandlerWithIndex<Item>?
     var onDetailedMove: AKListDetailedMoveHandler<Item>?
-
-    /// Whether to allow dragging items between sections
+    var onMoveWithIndex: AKListMoveHandlerWithIndex<Item>? // ✅ new
     var allowCrossSectionDrag: Bool = true
-
-    /// Custom pasteboard writer provider for advanced drag operations
     var pasteboardWriterProvider: ((Item) -> NSPasteboardWriting?)?
 
     public init() {}
@@ -199,11 +188,11 @@ extension AKList {
 // MARK: - Drag and Drop Modifiers
 
 extension AKList {
-    /// Enable drag and drop with a simple move handler
-    func akListEnableDragDrop(onMove: @escaping AKListMoveHandler<Item>) -> Self {
+    /// Enable drag and drop that also reports index in parent
+    func akListEnableDragDropWithIndex(onMove: @escaping AKListMoveHandlerWithIndex<Item>) -> Self {
         var copy = self
         copy.dragDropConfig.enabled = true
-        copy.dragDropConfig.onMove = onMove
+        copy.dragDropConfig.onMoveWithIndex = onMove
         return copy
     }
 
@@ -794,6 +783,18 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             }
 
             // Call the appropriate move handler
+            let operation: NSTableView.DropOperation =
+                (index == NSOutlineViewDropOnItemIndex) ? .on : .above
+
+            // Prefer the new index-aware handler if available
+            if let moveWithIndex = parent.dragDropConfig.onMoveWithIndex {
+                return moveWithIndex(draggedItem,
+                                     destinationItem,
+                                     operation,
+                                     (index == NSOutlineViewDropOnItemIndex) ? nil : index)
+            }
+
+            // Fallback to existing detailed or simple handlers
             if let detailedMoveHandler = parent.dragDropConfig.onDetailedMove {
                 return detailedMoveHandler(
                     draggedItem,
@@ -804,8 +805,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             } else if let moveHandler = parent.dragDropConfig.onMove,
                       let destItem = destinationItem
             {
-                let operation: NSTableView.DropOperation = (index == NSOutlineViewDropOnItemIndex) ? .on : .above
-                return moveHandler(draggedItem, destItem, operation)
+                return moveHandler(draggedItem, destItem, operation, nil)
             }
 
             return false
