@@ -7,7 +7,7 @@ struct ContentView: View {
 }
 
 // Hierarchical drag and drop example
-struct HierarchicalItem: AKListItem, Equatable {
+struct HierarchicalItem: AKListItem, Identifiable, Equatable {
     let id: UUID
     let name: String
     var children: [HierarchicalItem]
@@ -35,7 +35,6 @@ struct HierarchicalDragDropView: View {
     @State private var selection = Set<UUID>()
 
     var body: some View {
-        // ✅ Wrap in an AKSection
         AKList(items, selection: $selection, flat: false) { item in
             HStack {
                 Image(systemName: item.children.isEmpty ? "doc" : "folder")
@@ -51,20 +50,40 @@ struct HierarchicalDragDropView: View {
                 }
             }
         }
-        .akListEnableDragDropWithIndex { draggedItem, destinationItem, operation, dropIndex in
-            if let destinationItem {
-                print("Moving \(draggedItem.name) to \(destinationItem.name) at index \(dropIndex ?? -1) --> operation: \(operation.rawValue)")
-            } else {
-                print("Moving \(draggedItem.name) to root at index \(dropIndex ?? -1)")
-            }
+        .akListEnableDragDropWithContext(
+            dragTypes: [.string],
+            validateDrop: { source, destination, operation, index in
+                let allowDrop: Bool
 
-            if operation == .on, let destinationItem {
-                moveItemIntoParent(draggedItem, parent: destinationItem)
-            } else if let destinationItem {
-                moveItemAsSibling(draggedItem, sibling: destinationItem)
+                switch operation {
+                case .on:
+                    // Allow dropping onto any item to become its child
+                    allowDrop = destination != nil
+                case .above:
+                    // Allow inserting as sibling if we have a destination context (destination may be nil for root)
+                    allowDrop = true
+                @unknown default:
+                    allowDrop = false
+                }
+                print("Validate Drop: \(allowDrop) of item \(source.name) to \(destination?.name ?? "root") op=\(operation) index=\(index?.description ?? "nil")")
+                return allowDrop
+            },
+            acceptDrop: { source, destination, operation, index in
+                // Implement your data move. For now, just log and reject (return false).
+                // You can use the helpers below to implement real moves.
+                print("Accept Drop of \(source.name) to \(destination?.name ?? "root") op=\(operation) index=\(index?.description ?? "nil")")
+                // Example skeleton:
+                // switch operation {
+                // case .on:
+                //     if let dest = destination { moveItemIntoParent(source, parent: dest); return true }
+                // case .above:
+                //     if let dest = destination { moveItemAsSibling(source, sibling: dest); return true }
+                // @unknown default:
+                //     break
+                // }
+                return false
             }
-            return true
-        }
+        )
         .akListAllowCrossSectionDrag(true)
     }
 
