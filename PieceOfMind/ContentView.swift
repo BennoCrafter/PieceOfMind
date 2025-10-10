@@ -59,9 +59,13 @@ struct HierarchicalDragDropView: View {
             }
 
             if operation == .on, let destinationItem {
-                moveItemIntoParent(draggedItem, parent: destinationItem)
+                print("now")
+                withAnimation {
+                    moveItemIntoParent(draggedItem, parent: destinationItem)
+                }
             } else if let destinationItem {
-                moveItemAsSibling(draggedItem, sibling: destinationItem)
+                // moving item to other parent
+                moveItem(draggedItem, toParent: destinationItem, toIndex: dropIndex ?? -1)
             }
             return true
         }
@@ -72,16 +76,34 @@ struct HierarchicalDragDropView: View {
 
     func moveItemIntoParent(_ item: HierarchicalItem, parent: HierarchicalItem) {
         removeItem(item, from: &items)
-        if let parentIndex = findItemIndex(parent.id, in: items) {
-            items[parentIndex].children.append(item)
+        appendItem(item, toParentWithID: parent.id, in: &items)
+    }
+
+    func appendItem(_ item: HierarchicalItem, toParentWithID parentID: UUID, in array: inout [HierarchicalItem]) {
+        for i in array.indices {
+            if array[i].id == parentID {
+                array[i].children.append(item)
+                return
+            }
+            appendItem(item, toParentWithID: parentID, in: &array[i].children)
         }
     }
 
-    func moveItemAsSibling(_ item: HierarchicalItem, sibling: HierarchicalItem) {
-        removeItem(item, from: &items)
-        if let siblingIndex = findItemIndex(sibling.id, in: items) {
-            items.insert(item, at: siblingIndex + 1)
+    func insertItem(_ item: HierarchicalItem, toParentWithID parentID: UUID, atIndex index: Int, in array: inout [HierarchicalItem]) {
+        // loop through all children of items in array
+        for i in array.indices {
+            if array[i].id == parentID {
+                array[i].children.insert(item, at: index)
+                return
+            }
+
+            insertItem(item, toParentWithID: parentID, atIndex: index, in: &array[i].children)
         }
+    }
+
+    func moveItem(_ item: HierarchicalItem, toParent: HierarchicalItem, toIndex: Int) {
+        removeItem(item, from: &items)
+        insertItem(item, toParentWithID: toParent.id, atIndex: toIndex, in: &items)
     }
 
     func removeItem(_ item: HierarchicalItem, from array: inout [HierarchicalItem]) {
