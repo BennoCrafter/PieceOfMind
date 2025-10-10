@@ -58,19 +58,18 @@ struct HierarchicalDragDropView: View {
 
                 switch operation {
                 case .on:
-                    // Example: check if dropping onto itself
+                    // check if dropping onto itself
                     if let dest = destination, source.id == dest.id {
                         allowDrop = false
                     } else {
-                        allowDrop = destination != nil
+                        allowDrop = true
                     }
                 case .above:
-                    // Allow inserting as sibling if we have a destination context (destination may be nil for root)
                     allowDrop = true
                 @unknown default:
-                    allowDrop = false
+                    allowDrop = true
                 }
-                print("Validate Drop: \(allowDrop) of item \(source.name) to \(destination?.name ?? "root") op=\(operation) index=\(index?.description ?? "nil")")
+//                print("Validate Drop: \(allowDrop) of item \(source.name) to \(destination?.name ?? "root") op=\(operation) index=\(index?.description ?? "nil")")
                 return allowDrop
             },
             acceptDrop: { draggedItem, destinationItem, operation, dropIndex in
@@ -89,6 +88,9 @@ struct HierarchicalDragDropView: View {
                     // moving item to other parent
                     print("moving item to other parent")
                     moveItem(draggedItem, toParent: destinationItem, toIndex: dropIndex ?? -1)
+                } else {
+                    print("Moving to root")
+                    moveItemToRoot(draggedItem, toIndex: dropIndex ?? -1)
                 }
                 return true
             }
@@ -142,6 +144,21 @@ struct HierarchicalDragDropView: View {
     func moveItem(_ item: HierarchicalItem, toParent: HierarchicalItem, toIndex: Int) {
         removeItem(item, from: &items)
         insertItem(item, toParentWithID: toParent.id, atIndex: toIndex, in: &items)
+    }
+
+    func moveItemToRoot(_ item: HierarchicalItem, toIndex: Int) {
+        removeItem(item, from: &items)
+
+        if toIndex == -1 {
+            items.append(item)
+            return
+        }
+
+        let safeIndex = max(0, min(toIndex, items.count))
+
+        guard !items.contains(where: { $0.id == item.id }) else { return }
+
+        items.insert(item, at: safeIndex)
     }
 
     func removeItem(_ item: HierarchicalItem, from array: inout [HierarchicalItem]) {
