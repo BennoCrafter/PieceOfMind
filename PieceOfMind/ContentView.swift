@@ -51,25 +51,48 @@ struct HierarchicalDragDropView: View {
                 }
             }
         }
-        .akListEnableDragDropWithIndex { draggedItem, destinationItem, operation, dropIndex in
-            if let destinationItem {
-                print("Moving \(draggedItem.name) to \(destinationItem.name) at index \(dropIndex ?? -1) --> operation: \(operation.rawValue)")
-            } else {
-                print("Moving \(draggedItem.name) to root at index \(dropIndex ?? -1)")
-            }
+        .akListEnableDragDropWithContext(
+            dragTypes: [.string],
+            validateDrop: { source, destination, operation, index in
+                let allowDrop: Bool
 
-            if operation == .on, let destinationItem {
-                print("now")
-                withAnimation {
-                    moveItemIntoParent(draggedItem, parent: destinationItem)
+                switch operation {
+                case .on:
+                    // Example: check if dropping onto itself
+                    if let dest = destination, source.id == dest.id {
+                        allowDrop = false
+                    } else {
+                        allowDrop = destination != nil
+                    }
+                case .above:
+                    // Allow inserting as sibling if we have a destination context (destination may be nil for root)
+                    allowDrop = true
+                @unknown default:
+                    allowDrop = false
                 }
-            } else if let destinationItem {
-                // moving item to other parent
-                print("moving item to other parent")
-                moveItem(draggedItem, toParent: destinationItem, toIndex: dropIndex ?? -1)
+                print("Validate Drop: \(allowDrop) of item \(source.name) to \(destination?.name ?? "root") op=\(operation) index=\(index?.description ?? "nil")")
+                return allowDrop
+            },
+            acceptDrop: { draggedItem, destinationItem, operation, dropIndex in
+                if let destinationItem {
+                    print("Moving \(draggedItem.name) to \(destinationItem.name) at index \(dropIndex ?? -1) --> operation: \(operation.rawValue)")
+                } else {
+                    print("Moving \(draggedItem.name) to root at index \(dropIndex ?? -1)")
+                }
+
+                if operation == .on, let destinationItem {
+                    print("now")
+                    withAnimation {
+                        moveItemIntoParent(draggedItem, parent: destinationItem)
+                    }
+                } else if let destinationItem {
+                    // moving item to other parent
+                    print("moving item to other parent")
+                    moveItem(draggedItem, toParent: destinationItem, toIndex: dropIndex ?? -1)
+                }
+                return true
             }
-            return true
-        }
+        )
         .akListAllowCrossSectionDrag(true)
     }
 

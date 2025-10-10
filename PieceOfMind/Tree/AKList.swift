@@ -39,14 +39,26 @@ typealias AKListDetailedMoveHandler<Item: AKListItem> = (Item, Int, Int, Int) ->
 struct AKListDragDropConfig<Item: AKListItem> {
     var enabled: Bool = false
     var dragTypes: [NSPasteboard.PasteboardType] = [.string]
-    var onMove: AKListMoveHandlerWithIndex<Item>?
-    var onDetailedMove: AKListDetailedMoveHandler<Item>?
-    var onMoveWithIndex: AKListMoveHandlerWithIndex<Item>? // ✅ new
     var allowCrossSectionDrag: Bool = true
-    var pasteboardWriterProvider: ((Item) -> NSPasteboardWriting?)?
+    var pasteboardWriter: ((Item) -> NSPasteboardWriting?)?
 
-    public init() {}
+    // External drop callbacks
+    var validateDropHandler: AKListDropHandler<Item>?
+    var acceptDropHandler: AKListDropHandler<Item>?
 }
+
+/// Called when validating or accepting a drop.
+/// - Parameters:
+///   - source: the item being dragged
+///   - destination: the target item (nil if dropped on root/empty section)
+///   - operation: .on (drop on item) or .above (drop between items)
+///   - index: index within the destination’s children (nil if not applicable)
+typealias AKListDropHandler<Item: AKListItem> = (
+    _ source: Item,
+    _ destination: Item?,
+    _ operation: NSTableView.DropOperation,
+    _ index: Int?
+) -> Bool
 
 // MARK: - Main List View
 
@@ -188,19 +200,21 @@ extension AKList {
 // MARK: - Drag and Drop Modifiers
 
 extension AKList {
-    /// Enable drag and drop that also reports index in parent
-    func akListEnableDragDropWithIndex(onMove: @escaping AKListMoveHandlerWithIndex<Item>) -> Self {
+    /// External drag & drop with full context
+    func akListEnableDragDropWithContext(
+        dragTypes: [NSPasteboard.PasteboardType] = [.string],
+        allowCrossSectionDrag: Bool = true,
+        pasteboardWriter: ((Item) -> NSPasteboardWriting?)? = nil,
+        validateDrop: AKListDropHandler<Item>? = nil,
+        acceptDrop: AKListDropHandler<Item>? = nil
+    ) -> Self {
         var copy = self
         copy.dragDropConfig.enabled = true
-        copy.dragDropConfig.onMoveWithIndex = onMove
-        return copy
-    }
-
-    /// Enable drag and drop with detailed section information
-    func akListEnableDragDrop(onDetailedMove: @escaping AKListDetailedMoveHandler<Item>) -> Self {
-        var copy = self
-        copy.dragDropConfig.enabled = true
-        copy.dragDropConfig.onDetailedMove = onDetailedMove
+        copy.dragDropConfig.dragTypes = dragTypes
+        copy.dragDropConfig.allowCrossSectionDrag = allowCrossSectionDrag
+        copy.dragDropConfig.pasteboardWriter = pasteboardWriter
+        copy.dragDropConfig.validateDropHandler = validateDrop
+        copy.dragDropConfig.acceptDropHandler = acceptDrop
         return copy
     }
 
@@ -702,7 +716,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             }
 
             // Use custom pasteboard writer if provided
-            if let customWriter = parent.dragDropConfig.pasteboardWriterProvider {
+            if let customWriter = parent.dragDropConfig.pasteboardWriter {
                 return customWriter(node.value as! Item)
             }
 
@@ -712,100 +726,69 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             return pasteboardItem
         }
 
-        /// Validate drop operation
-        func outlineView(_ outlineView: NSOutlineView,
-                         validateDrop info: NSDraggingInfo,
-                         proposedItem item: Any?,
-                         proposedChildIndex index: Int) -> NSDragOperation
-        {
+        /// validate drop
+        func outlineView(
+            _ outlineView: NSOutlineView,
+            validateDrop info: NSDraggingInfo,
+            proposedItem item: Any?,
+            proposedChildIndex index: Int
+        ) -> NSDragOperation {
             guard parent.dragDropConfig.enabled else { return [] }
 
-            // Don't allow dropping on section headers
-            if let nsNode = item as? NSTreeNode,
-               nsNode.representedObject is AKSectionNode
-            {
-                return []
-            }
-
-            // For flat lists, only allow drops between items (not on items)
-            if parent.isFlat && index == NSOutlineViewDropOnItemIndex {
-                return []
-            }
-
-            // Allow move operation
-            return .move
-        }
-
-        /// Accept drop and perform the move
-        func outlineView(_ outlineView: NSOutlineView,
-                         acceptDrop info: NSDraggingInfo,
-                         item: Any?,
-                         childIndex index: Int) -> Bool
-        {
-            guard parent.dragDropConfig.enabled else { return false }
-
-            // Get the dragged item ID from pasteboard
+            // Determine dragged item
             guard let pasteboard = info.draggingPasteboard.pasteboardItems?.first,
-                  let draggedIdString = pasteboard.string(forType: .string)
-            else {
-                return false
-            }
+                  let draggedId = pasteboard.string(forType: .string),
+                  let draggedNode = findNodeById(draggedId, in: content),
+                  let sourceItem = draggedNode.value as? Item
+            else { return [] }
 
-            // Find the dragged item node
-            guard let draggedNode = findNodeById(draggedIdString, in: content) else {
-                return false
-            }
-
-            let draggedItem = draggedNode.value as! Item
-
-            // Determine destination
-            var destinationItem: Item?
-            var destinationSectionIndex = 0
-            var dropIndex = index
-
-            if let targetNSNode = item as? NSTreeNode {
-                if let targetNode = targetNSNode.representedObject as? AKItemNode {
-                    destinationItem = targetNode.value as? Item
-                    destinationSectionIndex = targetNode.sectionIndex
-                } else if let sectionNode = targetNSNode.representedObject as? AKSectionNode {
-                    destinationSectionIndex = sectionNode.sectionIndex
-                }
-            } else {
-                // Dropping in root - determine section from position
-                destinationSectionIndex = determineSectionFromRootDrop(at: index)
-            }
-
-            // Check cross-section drag restriction
-            if !parent.dragDropConfig.allowCrossSectionDrag &&
-                draggedNode.sectionIndex != destinationSectionIndex
+            // Destination item (nil if dropped on root)
+            var destinationItem: Item? = nil
+            if let targetNSNode = item as? NSTreeNode,
+               let targetNode = targetNSNode.representedObject as? AKItemNode
             {
-                return false
+                destinationItem = targetNode.value as? Item
             }
 
-            // Call the appropriate move handler
+            // Determine drop operation
             let operation: NSTableView.DropOperation =
                 (index == NSOutlineViewDropOnItemIndex) ? .on : .above
 
-            // Prefer the new index-aware handler if available
-            if let moveWithIndex = parent.dragDropConfig.onMoveWithIndex {
-                return moveWithIndex(draggedItem,
-                                     destinationItem,
-                                     operation,
-                                     (index == NSOutlineViewDropOnItemIndex) ? nil : index)
+            if let validate = parent.dragDropConfig.validateDropHandler {
+                let allowed = validate(sourceItem, destinationItem, operation, index == NSOutlineViewDropOnItemIndex ? nil : index)
+                return allowed ? .move : []
             }
 
-            // Fallback to existing detailed or simple handlers
-            if let detailedMoveHandler = parent.dragDropConfig.onDetailedMove {
-                return detailedMoveHandler(
-                    draggedItem,
-                    draggedNode.sectionIndex,
-                    dropIndex,
-                    destinationSectionIndex
-                )
-            } else if let moveHandler = parent.dragDropConfig.onMove,
-                      let destItem = destinationItem
+            return .move
+        }
+
+        /// accept drop
+        func outlineView(
+            _ outlineView: NSOutlineView,
+            acceptDrop info: NSDraggingInfo,
+            item: Any?,
+            childIndex index: Int
+        ) -> Bool {
+            guard parent.dragDropConfig.enabled else { return false }
+
+            guard let pasteboard = info.draggingPasteboard.pasteboardItems?.first,
+                  let draggedId = pasteboard.string(forType: .string),
+                  let draggedNode = findNodeById(draggedId, in: content),
+                  let sourceItem = draggedNode.value as? Item
+            else { return false }
+
+            var destinationItem: Item? = nil
+            if let targetNSNode = item as? NSTreeNode,
+               let targetNode = targetNSNode.representedObject as? AKItemNode
             {
-                return moveHandler(draggedItem, destItem, operation, nil)
+                destinationItem = targetNode.value as? Item
+            }
+
+            let operation: NSTableView.DropOperation =
+                (index == NSOutlineViewDropOnItemIndex) ? .on : .above
+
+            if let accept = parent.dragDropConfig.acceptDropHandler {
+                return accept(sourceItem, destinationItem, operation, index == NSOutlineViewDropOnItemIndex ? nil : index)
             }
 
             return false
@@ -1000,244 +983,3 @@ extension View {
         modifier(DoubleClickViewModifier(action: action))
     }
 }
-
-// MARK: - Usage Example (commented out)
-
-/*
-
- Example Usage:
-
- struct MyItem: AKListItem {
-     let id: UUID
-     let name: String
-
-     // For hierarchical lists, provide children
-     var listChildren: [any AKListItem]? {
-         return nil // or return child items
-     }
- }
-
- struct ContentView: View {
-     @State private var items = [
-         MyItem(id: UUID(), name: "Item 1"),
-         MyItem(id: UUID(), name: "Item 2"),
-         MyItem(id: UUID(), name: "Item 3")
-     ]
-
-     @State private var selection = Set<UUID>()
-
-     var body: some View {
-         AKList(items, selection: $selection) { item in
-             Text(item.name)
-                 .padding(.vertical, 8)
-         }
-         .akListEnableDragDrop { draggedItem, destinationItem, operation in
-             // Handle the move
-             guard let fromIndex = items.firstIndex(where: { $0.id == draggedItem.id }),
-                   let toIndex = items.firstIndex(where: { $0.id == destinationItem.id }) else {
-                 return false
-             }
-
-             items.move(fromOffsets: IndexSet(integer: fromIndex),
-                       toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
-             return true
-         }
-     }
- }
-
- // For detailed control with sections:
- struct ContentViewWithSections: View {
-     @State private var sections = [
-         AKSection("Section 1", [
-             MyItem(id: UUID(), name: "Item 1.1"),
-             MyItem(id: UUID(), name: "Item 1.2")
-         ]),
-         AKSection("Section 2", [
-             MyItem(id: UUID(), name: "Item 2.1"),
-             MyItem(id: UUID(), name: "Item 2.2")
-         ])
-     ]
-
-     @State private var selection = Set<UUID>()
-
-     var body: some View {
-         AKList(sections, selection: $selection) { item in
-             Text(item.name)
-                 .padding(.vertical, 8)
-         }
-         .akListEnableDragDrop { draggedItem, fromSection, toIndex, toSection in
-             // Handle move with section information
-             var newSections = sections
-
-             // Remove from source section
-             if let fromItemIndex = newSections[fromSection].items.firstIndex(where: { $0.id == draggedItem.id }) {
-                 newSections[fromSection].items.remove(at: fromItemIndex)
-             }
-
-             // Insert into destination section
-             let insertIndex = min(toIndex, newSections[toSection].items.count)
-             newSections[toSection].items.insert(draggedItem, at: insertIndex)
-
-             sections = newSections
-             return true
-         }
-         .akListAllowCrossSectionDrag(true) // Allow moving between sections
-     }
- }
-
- // Advanced: Custom drag types and external drops
- struct AdvancedDragDropView: View {
-     @State private var items: [MyItem] = []
-     @State private var selection = Set<UUID>()
-
-     var body: some View {
-         AKList(items, selection: $selection) { item in
-             HStack {
-                 Image(systemName: "doc")
-                 Text(item.name)
-             }
-             .padding(.vertical, 8)
-             .akListContextMenu {
-                 Button("Duplicate") {
-                     duplicateItem(item)
-                 }
-                 Button("Delete") {
-                     deleteItem(item)
-                 }
-             }
-             .akListOnDoubleClick {
-                 openItem(item)
-             }
-         }
-         .akListEnableDragDrop { draggedItem, destItem, operation in
-             handleMove(draggedItem, to: destItem, operation: operation)
-             return true
-         }
-         .akListDragTypes([.string, .fileURL])
-     }
-
-     func handleMove(_ item: MyItem, to destination: MyItem, operation: NSTableView.DropOperation) -> Bool {
-         guard let fromIndex = items.firstIndex(where: { $0.id == item.id }),
-               let toIndex = items.firstIndex(where: { $0.id == destination.id }) else {
-             return false
-         }
-
-         var newItems = items
-         newItems.remove(at: fromIndex)
-
-         let adjustedToIndex = fromIndex < toIndex ? toIndex - 1 : toIndex
-         let insertIndex = operation == .on ? adjustedToIndex : adjustedToIndex + 1
-
-         newItems.insert(item, at: insertIndex)
-         items = newItems
-         return true
-     }
-
-     func duplicateItem(_ item: MyItem) {
-         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
-         let newItem = MyItem(id: UUID(), name: item.name + " (Copy)")
-         items.insert(newItem, at: index + 1)
-     }
-
-     func deleteItem(_ item: MyItem) {
-         items.removeAll { $0.id == item.id }
-     }
-
-     func openItem(_ item: MyItem) {
-         print("Opening item: \(item.name)")
-     }
- }
-
- // Hierarchical drag and drop example
- struct HierarchicalItem: AKListItem {
-     let id: UUID
-     let name: String
-     var children: [HierarchicalItem]
-
-     var listChildren: [any AKListItem]? {
-         children.isEmpty ? nil : children
-     }
-
-     static func == (lhs: HierarchicalItem, rhs: HierarchicalItem) -> Bool {
-         lhs.id == rhs.id && lhs.name == rhs.name && lhs.children == rhs.children
-     }
- }
-
- struct HierarchicalDragDropView: View {
-     @State private var items = [
-         HierarchicalItem(id: UUID(), name: "Parent 1", children: [
-             HierarchicalItem(id: UUID(), name: "Child 1.1", children: []),
-             HierarchicalItem(id: UUID(), name: "Child 1.2", children: [])
-         ]),
-         HierarchicalItem(id: UUID(), name: "Parent 2", children: [
-             HierarchicalItem(id: UUID(), name: "Child 2.1", children: [])
-         ])
-     ]
-
-     @State private var selection = Set<UUID>()
-
-     var body: some View {
-         AKList(items, selection: $selection, flat: false) { item in
-             HStack {
-                 Image(systemName: item.children.isEmpty ? "doc" : "folder")
-                 Text(item.name)
-             }
-             .padding(.vertical, 4)
-         }
-         .akListEnableDragDrop { draggedItem, destItem, operation in
-             // Handle hierarchical moves
-             if operation == .on {
-                 // Move into the destination item as a child
-                 moveItemIntoParent(draggedItem, parent: destItem)
-             } else {
-                 // Move as sibling
-                 moveItemAsSibling(draggedItem, sibling: destItem)
-             }
-             return true
-         }
-     }
-
-     func moveItemIntoParent(_ item: HierarchicalItem, parent: HierarchicalItem) {
-         // Remove from current location
-         removeItem(item, from: &items)
-
-         // Add to parent's children
-         if let parentIndex = findItemIndex(parent.id, in: items) {
-             items[parentIndex].children.append(item)
-         }
-     }
-
-     func moveItemAsSibling(_ item: HierarchicalItem, sibling: HierarchicalItem) {
-         // Remove from current location
-         removeItem(item, from: &items)
-
-         // Find sibling and insert next to it
-         if let siblingIndex = findItemIndex(sibling.id, in: items) {
-             items.insert(item, at: siblingIndex + 1)
-         }
-     }
-
-     func removeItem(_ item: HierarchicalItem, from array: inout [HierarchicalItem]) {
-         for i in array.indices.reversed() {
-             if array[i].id == item.id {
-                 array.remove(at: i)
-                 return
-             }
-             removeItem(item, from: &array[i].children)
-         }
-     }
-
-     func findItemIndex(_ id: UUID, in array: [HierarchicalItem]) -> Int? {
-         for (index, item) in array.enumerated() {
-             if item.id == id {
-                 return index
-             }
-             if let _ = findItemIndex(id, in: item.children) {
-                 return nil // Found in children, not at this level
-             }
-         }
-         return nil
-     }
- }
-
- */
