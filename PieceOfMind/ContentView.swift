@@ -65,6 +65,7 @@ struct HierarchicalDragDropView: View {
                 }
             } else if let destinationItem {
                 // moving item to other parent
+                print("moving item to other parent")
                 moveItem(draggedItem, toParent: destinationItem, toIndex: dropIndex ?? -1)
             }
             return true
@@ -89,15 +90,29 @@ struct HierarchicalDragDropView: View {
         }
     }
 
-    func insertItem(_ item: HierarchicalItem, toParentWithID parentID: UUID, atIndex index: Int, in array: inout [HierarchicalItem]) {
-        // loop through all children of items in array
+    func insertItem(
+        _ item: HierarchicalItem,
+        toParentWithID parentID: UUID,
+        atIndex index: Int,
+        in array: inout [HierarchicalItem]
+    ) {
         for i in array.indices {
+            // Found the parent
             if array[i].id == parentID {
-                array[i].children.insert(item, at: index)
+                // Clamp index within valid bounds (0 ... count)
+                let safeIndex = max(0, min(index, array[i].children.count))
+
+                // Prevent inserting duplicate items (optional but good safety)
+                guard !array[i].children.contains(where: { $0.id == item.id }) else { return }
+
+                array[i].children.insert(item, at: safeIndex)
                 return
             }
 
-            insertItem(item, toParentWithID: parentID, atIndex: index, in: &array[i].children)
+            // Only recurse if the item has children to search
+            if !array[i].children.isEmpty {
+                insertItem(item, toParentWithID: parentID, atIndex: index, in: &array[i].children)
+            }
         }
     }
 
