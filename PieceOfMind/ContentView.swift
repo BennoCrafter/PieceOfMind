@@ -1,8 +1,140 @@
 import SwiftUI
 
-struct ContentView: View {
+// MARK: - TagItemView
+
+struct TagItemView: View {
+    var tagItem: TagItem
+    var isSelected: Bool = false
+
     var body: some View {
-        HierarchicalDragDropView()
+        HStack(spacing: 8) {
+            Image(systemName: tagItem.icon ?? "circle.fill")
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(tagItem.color ?? .accentColor)
+                .frame(width: 18)
+
+            Text(tagItem.name)
+                .font(.system(size: 14))
+                .foregroundColor(.primary)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 2)
+        .padding(.horizontal, 4)
+        .contentShape(Rectangle())
+        .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+        .cornerRadius(6)
+    }
+}
+
+// MARK: - Hierarchical View
+
+struct HierarchicalView: View {
+    var items: [TagItem]
+    @Binding var expandedItems: Set<TagItem.ID>
+    @Binding var selection: TagItem.ID?
+
+    var body: some View {
+        ForEach(items) { item in
+            if let children = item.children {
+                DisclosureGroup(
+                    isExpanded: Binding(
+                        get: { expandedItems.contains(item.id) },
+                        set: { newValue in
+                            if newValue {
+                                expandedItems.insert(item.id)
+                            } else {
+                                expandedItems.remove(item.id)
+                            }
+                        }
+                    )
+                ) {
+                    HierarchicalView(items: children, expandedItems: $expandedItems, selection: $selection)
+                        .padding(.leading, 12)
+                } label: {
+                    TagItemView(tagItem: item, isSelected: selection == item.id)
+                        .onTapGesture {
+                            selection = item.id
+                        }
+                }
+            } else {
+                TagItemView(tagItem: item, isSelected: selection == item.id)
+                    .padding(.leading, 4)
+                    .onTapGesture {
+                        selection = item.id
+                    }
+            }
+        }
+    }
+}
+
+// MARK: - Example Data
+
+let sampleData: [TagItem] = [
+    TagItem(
+        name: "Projects",
+        icon: "folder.fill",
+        color: .blue,
+        children: [
+            TagItem(name: "Design", icon: "paintpalette.fill", color: .pink),
+            TagItem(name: "Development", icon: "hammer.fill", color: .indigo),
+            TagItem(name: "Marketing", icon: "megaphone.fill", color: .orange)
+        ]
+    ),
+    TagItem(
+        name: "Personal",
+        icon: "person.crop.circle.fill",
+        color: .green,
+        children: [
+            TagItem(name: "Fitness", icon: "figure.run", color: .teal),
+            TagItem(name: "Reading", icon: "book.fill", color: .purple),
+            TagItem(name: "Shopping")
+        ]
+    )
+]
+
+// MARK: - ContentView
+
+struct ContentView: View {
+    @State private var expandedItems: Set<TagItem.ID> = []
+    @State private var selection: TagItem.ID?
+
+    var body: some View {
+        NavigationSplitView {
+            List(selection: $selection) {
+                HierarchicalView(items: sampleData, expandedItems: $expandedItems, selection: $selection)
+            }
+            .listStyle(.sidebar)
+            .navigationTitle("Tags")
+            .onAppear {
+                // expand everything by default
+                expandedItems = Set(sampleData.map { $0.id })
+            }
+        } detail: {
+            if let selected = findItem(by: selection, in: sampleData) {
+                VStack {
+                    Text(selected.name)
+                        .font(.title2)
+                        .padding()
+                }
+            } else {
+                Text("Select a Tag")
+                    .font(.title3)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    // Helper: find the selected item by ID
+    func findItem(by id: TagItem.ID?, in items: [TagItem]) -> TagItem? {
+        guard let id else { return nil }
+        for item in items {
+            if item.id == id { return item }
+            if let found = findItem(by: id, in: item.children ?? []) {
+                return found
+            }
+        }
+        return nil
     }
 }
 
@@ -69,7 +201,6 @@ struct HierarchicalDragDropView: View {
                 @unknown default:
                     allowDrop = true
                 }
-//                print("Validate Drop: \(allowDrop) of item \(source.name) to \(destination?.name ?? "root") op=\(operation) index=\(index?.description ?? "nil")")
                 return allowDrop
             },
             acceptDrop: { draggedItem, destinationItem, operation, dropIndex in
