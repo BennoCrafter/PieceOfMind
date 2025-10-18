@@ -21,23 +21,14 @@ class DatabaseManager {
     
     // MARK: - Pieces
     
-    func addPiece(title: String, description: String?, dueDate: Date?, tags: [Tag]) {
-        let piece = Piece(
-            id: UUID(),
-            title: title,
-            createdDate: Date(),
-            dueDate: dueDate,
-            description: description,
-            highlighted: false
-        )
-        
+    func addPiece(piece: Piece, tags: [Tag]) {
         do {
             try database.write { db in
-                try Piece.insert(piece).execute(db)
+                try Piece.insert { piece }.execute(db)
                 
                 for tag in tags {
                     let rel = PiecesTags(id: UUID(), pieceID: piece.id, tagID: tag.id)
-                    try PiecesTags.insert(rel).execute(db)
+                    try PiecesTags.insert { rel }.execute(db)
                 }
             }
         } catch {

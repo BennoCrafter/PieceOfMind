@@ -12,6 +12,7 @@ import SwiftUI
 @main
 
 struct PieceOfMindApp: App {
+    static let databaseManager = DatabaseManager()
     init() {
         try! prepareDependencies {
             try $0.bootstrapDatabase()

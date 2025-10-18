@@ -36,7 +36,7 @@ struct HierarchicalView: View {
 
     var body: some View {
         ForEach(items) { item in
-            if let children = item.children {
+            if let children = item.children.isEmpty ? nil : item.children {
                 DisclosureGroup(
                     isExpanded: Binding(
                         get: { expandedItems.contains(item.id) },
@@ -90,28 +90,105 @@ let sampleData: [TagItem] = [
             TagItem(name: "Reading", icon: "book.fill", color: .purple),
             TagItem(name: "Shopping")
         ]
+    ),
+    TagItem(
+        name: "Personal",
+        icon: "person.crop.circle.fill",
+        color: .green,
+        children: [
+            TagItem(name: "Fitness", icon: "figure.run", color: .teal),
+            TagItem(name: "Reading", icon: "book.fill", color: .purple),
+            TagItem(name: "Shopping")
+        ]
+    ),
+    TagItem(
+        name: "Personal",
+        icon: "person.crop.circle.fill",
+        color: .green,
+        children: [
+            TagItem(name: "Fitness", icon: "figure.run", color: .teal),
+            TagItem(name: "Reading", icon: "book.fill", color: .purple),
+            TagItem(name: "Shopping")
+        ]
+    ),
+    TagItem(
+        name: "Personal",
+        icon: "person.crop.circle.fill",
+        color: .green,
+        children: [
+            TagItem(name: "Fitness", icon: "figure.run", color: .teal),
+            TagItem(name: "Reading", icon: "book.fill", color: .purple),
+            TagItem(name: "Shopping")
+        ]
+    ), TagItem(
+        name: "Personal",
+        icon: "person.crop.circle.fill",
+        color: .green,
+        children: [
+            TagItem(name: "Fitness", icon: "figure.run", color: .teal),
+            TagItem(name: "Reading", icon: "book.fill", color: .purple),
+            TagItem(name: "Shopping")
+        ]
+    ),
+    TagItem(
+        name: "Personal",
+        icon: "person.crop.circle.fill",
+        color: .green,
+        children: [
+            TagItem(name: "Fitness", icon: "figure.run", color: .teal),
+            TagItem(name: "Reading", icon: "book.fill", color: .purple),
+            TagItem(name: "Shopping")
+        ]
+    ),
+    TagItem(
+        name: "Personal",
+        icon: "person.crop.circle.fill",
+        color: .green,
+        children: [
+            TagItem(name: "Fitness", icon: "figure.run", color: .teal),
+            TagItem(name: "Reading", icon: "book.fill", color: .purple),
+            TagItem(name: "Shopping")
+        ]
+    ),
+    TagItem(
+        name: "Personal",
+        icon: "person.crop.circle.fill",
+        color: .green,
+        children: [
+            TagItem(name: "Fitness", icon: "figure.run", color: .teal),
+            TagItem(name: "Reading", icon: "book.fill", color: .purple),
+            TagItem(name: "Shopping")
+        ]
     )
 ]
-
-// MARK: - ContentView
 
 struct ContentView: View {
     @State private var expandedItems: Set<TagItem.ID> = []
     @State private var selection: TagItem.ID?
+    @State private var showEditor = false
+    @State private var tagItems: [TagItem] = sampleData
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selection) {
-                HierarchicalView(items: sampleData, expandedItems: $expandedItems, selection: $selection)
+            VStack(spacing: 0) {
+                List(selection: $selection) {
+                    HierarchicalView(items: tagItems, expandedItems: $expandedItems, selection: $selection)
+                }
+                .listStyle(.sidebar)
+                .onAppear {
+                    expandedItems = Set(tagItems.map { $0.id })
+                }
+
+                Divider()
+
+                Button("Edit") {
+                    showEditor = true
+                }
+                .padding()
             }
-            .listStyle(.sidebar)
-            .navigationTitle("Tags")
-            .onAppear {
-                // expand everything by default
-                expandedItems = Set(sampleData.map { $0.id })
-            }
+
         } detail: {
-            if let selected = findItem(by: selection, in: sampleData) {
+            if let selected = findItem(by: selection, in: tagItems) {
                 VStack {
                     Text(selected.name)
                         .font(.title2)
@@ -123,9 +200,11 @@ struct ContentView: View {
                     .foregroundColor(.secondary)
             }
         }
+        .sheet(isPresented: $showEditor) {
+            EditorWindow(tagItems: $tagItems, isPresented: $showEditor)
+        }
     }
 
-    // Helper: find the selected item by ID
     func findItem(by id: TagItem.ID?, in items: [TagItem]) -> TagItem? {
         guard let id else { return nil }
         for item in items {
@@ -138,108 +217,103 @@ struct ContentView: View {
     }
 }
 
-// Hierarchical drag and drop example
-struct HierarchicalItem: AKListItem, Equatable {
-    let id: UUID
-    let name: String
-    var children: [HierarchicalItem]
+struct EditorWindow: View {
+    @Binding var tagItems: [TagItem]
+    @Binding var isPresented: Bool
 
-    var listChildren: [any AKListItem]? {
-        children.isEmpty ? nil : children
-    }
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                HierarchicalDragDropView(tagItems: $tagItems)
+                    .padding()
+                    .scrollDisabled(true)
 
-    static func == (lhs: HierarchicalItem, rhs: HierarchicalItem) -> Bool {
-        lhs.id == rhs.id && lhs.name == rhs.name && lhs.children == rhs.children
+                Divider()
+
+                HStack {
+                    Spacer()
+                    Button("Save") {
+                        isPresented = false
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .padding()
+                }
+            }
+            .navigationTitle("Edit Tags")
+        }
+        .frame(minWidth: 500, minHeight: 500)
     }
 }
 
 struct HierarchicalDragDropView: View {
-    @State private var items = [
-        HierarchicalItem(id: UUID(), name: "Parent 1", children: [
-            HierarchicalItem(id: UUID(), name: "Child 1.1", children: []),
-            HierarchicalItem(id: UUID(), name: "Child 1.2", children: [])
-        ]),
-        HierarchicalItem(id: UUID(), name: "Parent 2", children: [
-            HierarchicalItem(id: UUID(), name: "Child 2.1", children: [])
-        ])
-    ]
+    @Binding var tagItems: [TagItem]
 
-    @State private var selection = Set<UUID>()
+    @State private var selection = Set<TagItem.ID>()
 
     var body: some View {
-        // ✅ Wrap in an AKSection
-        AKList(items, selection: $selection, flat: false) { item in
-            HStack {
-                Image(systemName: item.children.isEmpty ? "doc" : "folder")
-                Text(item.name)
+        VStack {
+            // Use the AKList initializer that accepts [Item] directly
+            AKList(tagItems, selection: $selection, flat: false) { (item: TagItem) in
+                TagItemView(tagItem: item, isSelected: selection.contains(item.id))
+                    .padding(.vertical, 4)
             }
-            .padding(.vertical, 4)
-            .akListContextMenu {
-                Button("Duplicate") {
-                    print("Duplicate")
-                }
-                Button("Delete") {
-                    print("Delete")
-                }
-            }
-        }
-        .akListEnableDragDropWithContext(
-            dragTypes: [.string],
-            validateDrop: { source, destination, operation, index in
-                let allowDrop: Bool
+            .akListEnableDragDropWithContext(
+                dragTypes: [.string],
+                validateDrop: { source, destination, operation, index in
+                    let allowDrop: Bool
 
-                switch operation {
-                case .on:
-                    // check if dropping onto itself
-                    if let dest = destination, source.id == dest.id {
-                        allowDrop = false
-                    } else {
+                    switch operation {
+                    case .on:
+                        // check if dropping onto itself
+                        if let dest = destination, source.id == dest.id {
+                            allowDrop = false
+                        } else {
+                            allowDrop = true
+                        }
+                    case .above:
+                        allowDrop = true
+                    @unknown default:
                         allowDrop = true
                     }
-                case .above:
-                    allowDrop = true
-                @unknown default:
-                    allowDrop = true
-                }
-                return allowDrop
-            },
-            acceptDrop: { draggedItem, destinationItem, operation, dropIndex in
-                if let destinationItem {
-                    print("Moving \(draggedItem.name) to \(destinationItem.name) at index \(dropIndex ?? -1) --> operation: \(operation.rawValue)")
-                } else {
-                    print("Moving \(draggedItem.name) to root at index \(dropIndex ?? -1)")
-                }
-
-                if operation == .on, let destinationItem {
-                    print("now")
-                    withAnimation {
-                        moveItemIntoParent(draggedItem, parent: destinationItem)
+                    return allowDrop
+                },
+                acceptDrop: { draggedItem, destinationItem, operation, dropIndex in
+                    if let destinationItem {
+                        print("Moving \(draggedItem.name) to \(destinationItem.name) at index \(dropIndex ?? -1) --> operation: \(operation.rawValue)")
+                    } else {
+                        print("Moving \(draggedItem.name) to root at index \(dropIndex ?? -1)")
                     }
-                } else if let destinationItem {
-                    // moving item to other parent
-                    print("moving item to other parent")
-                    moveItem(draggedItem, toParent: destinationItem, toIndex: dropIndex ?? -1)
-                } else {
-                    print("Moving to root")
-                    moveItemToRoot(draggedItem, toIndex: dropIndex ?? -1)
+
+                    if operation == .on, let destinationItem {
+                        withAnimation {
+                            moveItemIntoParent(draggedItem, parent: destinationItem)
+                        }
+                    } else if let destinationItem {
+                        // moving item to other parent
+                        moveItem(draggedItem, toParent: destinationItem, toIndex: dropIndex ?? -1)
+                    } else {
+                        // Moving to root
+                        moveItemToRoot(draggedItem, toIndex: dropIndex ?? -1)
+                    }
+                    return true
                 }
-                return true
-            }
-        )
-        .akListAllowCrossSectionDrag(true)
+            )
+            .akListAllowCrossSectionDrag(true)
+        }
     }
 
-    // MARK: - Move helpers
+    // MARK: - Move helpers (TagItem)
 
-    func moveItemIntoParent(_ item: HierarchicalItem, parent: HierarchicalItem) {
-        removeItem(item, from: &items)
-        appendItem(item, toParentWithID: parent.id, in: &items)
+    func moveItemIntoParent(_ item: TagItem, parent: TagItem) {
+        removeItem(item, from: &tagItems)
+        appendItem(item, toParentWithID: parent.id, in: &tagItems)
     }
 
-    func appendItem(_ item: HierarchicalItem, toParentWithID parentID: UUID, in array: inout [HierarchicalItem]) {
+    func appendItem(_ item: TagItem, toParentWithID parentID: UUID, in array: inout [TagItem]) {
         for i in array.indices {
             if array[i].id == parentID {
                 array[i].children.append(item)
+
                 return
             }
             appendItem(item, toParentWithID: parentID, in: &array[i].children)
@@ -247,10 +321,10 @@ struct HierarchicalDragDropView: View {
     }
 
     func insertItem(
-        _ item: HierarchicalItem,
+        _ item: TagItem,
         toParentWithID parentID: UUID,
         atIndex index: Int,
-        in array: inout [HierarchicalItem]
+        in array: inout [TagItem]
     ) {
         for i in array.indices {
             // Found the parent
@@ -272,27 +346,27 @@ struct HierarchicalDragDropView: View {
         }
     }
 
-    func moveItem(_ item: HierarchicalItem, toParent: HierarchicalItem, toIndex: Int) {
-        removeItem(item, from: &items)
-        insertItem(item, toParentWithID: toParent.id, atIndex: toIndex, in: &items)
+    func moveItem(_ item: TagItem, toParent: TagItem, toIndex: Int) {
+        removeItem(item, from: &tagItems)
+        insertItem(item, toParentWithID: toParent.id, atIndex: toIndex, in: &tagItems)
     }
 
-    func moveItemToRoot(_ item: HierarchicalItem, toIndex: Int) {
-        removeItem(item, from: &items)
+    func moveItemToRoot(_ item: TagItem, toIndex: Int) {
+        removeItem(item, from: &tagItems)
 
         if toIndex == -1 {
-            items.append(item)
+            tagItems.append(item)
             return
         }
 
-        let safeIndex = max(0, min(toIndex, items.count))
+        let safeIndex = max(0, min(toIndex, tagItems.count))
 
-        guard !items.contains(where: { $0.id == item.id }) else { return }
+        guard !tagItems.contains(where: { $0.id == item.id }) else { return }
 
-        items.insert(item, at: safeIndex)
+        tagItems.insert(item, at: safeIndex)
     }
 
-    func removeItem(_ item: HierarchicalItem, from array: inout [HierarchicalItem]) {
+    func removeItem(_ item: TagItem, from array: inout [TagItem]) {
         for i in array.indices.reversed() {
             if array[i].id == item.id {
                 array.remove(at: i)
@@ -302,7 +376,7 @@ struct HierarchicalDragDropView: View {
         }
     }
 
-    func findItemIndex(_ id: UUID, in array: [HierarchicalItem]) -> Int? {
+    func findItemIndex(_ id: UUID, in array: [TagItem]) -> Int? {
         for (index, item) in array.enumerated() {
             if item.id == id {
                 return index
