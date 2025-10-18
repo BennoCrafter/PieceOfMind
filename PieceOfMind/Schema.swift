@@ -25,6 +25,8 @@ struct Tag: Hashable, Identifiable {
     var icon: String?
     /// Just a UUID reference, not a foreign key
     var parent: UUID?
+    /// positon relative to parent
+    var position: Int?
 
     static var defaultColor: Color {
         Color(red: 0x4a / 255, green: 0x99 / 255, blue: 0xef / 255)
@@ -81,6 +83,7 @@ extension DependencyValues {
                     "color" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT \(raw: defaultTagColor ?? 0),
                     "icon" TEXT,
                     "parent" TEXT
+                    "position" INTEGER
                 ) STRICT
                 """
             )
