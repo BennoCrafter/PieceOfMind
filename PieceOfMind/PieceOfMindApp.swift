@@ -13,6 +13,7 @@ import SwiftUI
 
 struct PieceOfMindApp: App {
     static let databaseManager = DatabaseManager()
+
     init() {
         try! prepareDependencies {
             try $0.bootstrapDatabase()
@@ -22,7 +23,7 @@ struct PieceOfMindApp: App {
     var body: some Scene {
         WindowGroup {
             NavigationStack {
-                ContentView()
+                ContentView(databaseManager: Self.databaseManager)
             }
         }
     }

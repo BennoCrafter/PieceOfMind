@@ -82,7 +82,7 @@ extension DependencyValues {
                     "label" TEXT NOT NULL,
                     "color" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT \(raw: defaultTagColor ?? 0),
                     "icon" TEXT,
-                    "parent" TEXT
+                    "parent" TEXT,
                     "position" INTEGER
                 ) STRICT
                 """
