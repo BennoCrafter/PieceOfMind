@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		D32C944B2E94277000CF4837 /* OutlineView in Frameworks */ = {isa = PBXBuildFile; productRef = D32C944A2E94277000CF4837 /* OutlineView */; };
+		D33B8A892EA374F400691A04 /* ObservableDefaults in Frameworks */ = {isa = PBXBuildFile; productRef = D33B8A882EA374F400691A04 /* ObservableDefaults */; };
 		D37C93A02E896D2C00516461 /* SQLiteData in Frameworks */ = {isa = PBXBuildFile; productRef = D37C939F2E896D2C00516461 /* SQLiteData */; };
 		D37C93A22E896D2C00516461 /* SQLiteDataTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = D37C93A12E896D2C00516461 /* SQLiteDataTestSupport */; };
 /* End PBXBuildFile section */
@@ -72,6 +73,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D32C944B2E94277000CF4837 /* OutlineView in Frameworks */,
+				D33B8A892EA374F400691A04 /* ObservableDefaults in Frameworks */,
 				D37C93A02E896D2C00516461 /* SQLiteData in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -136,6 +138,7 @@
 			packageProductDependencies = (
 				D37C939F2E896D2C00516461 /* SQLiteData */,
 				D32C944A2E94277000CF4837 /* OutlineView */,
+				D33B8A882EA374F400691A04 /* ObservableDefaults */,
 			);
 			productName = PieceOfMind;
 			productReference = D36AB4A82E5AFC7300B3236B /* PieceOfMind.app */;
@@ -223,6 +226,7 @@
 			packageReferences = (
 				D37C939E2E896D2C00516461 /* XCRemoteSwiftPackageReference "sqlite-data" */,
 				D32C94492E94276F00CF4837 /* XCRemoteSwiftPackageReference "OutlineView" */,
+				D33B8A872EA374F400691A04 /* XCRemoteSwiftPackageReference "ObservableDefaults" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D36AB4A92E5AFC7300B3236B /* Products */;
@@ -642,6 +646,14 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		D33B8A872EA374F400691A04 /* XCRemoteSwiftPackageReference "ObservableDefaults" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/fatbobman/ObservableDefaults";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.7.2;
+			};
+		};
 		D37C939E2E896D2C00516461 /* XCRemoteSwiftPackageReference "sqlite-data" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pointfreeco/sqlite-data";
@@ -657,6 +669,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D32C94492E94276F00CF4837 /* XCRemoteSwiftPackageReference "OutlineView" */;
 			productName = OutlineView;
+		};
+		D33B8A882EA374F400691A04 /* ObservableDefaults */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D33B8A872EA374F400691A04 /* XCRemoteSwiftPackageReference "ObservableDefaults" */;
+			productName = ObservableDefaults;
 		};
 		D37C939F2E896D2C00516461 /* SQLiteData */ = {
 			isa = XCSwiftPackageProductDependency;
