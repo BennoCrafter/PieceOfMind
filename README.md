@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="assets/AppIcon.png" width="150" height="150" alt="PieceOfMind icon">
+  <img src="assets/icon/icon-mac.png" width="150" height="150" alt="PieceOfMind icon">
 </p>
 
 <div align="center">
     <h1>Piece of Mind</h1>
 
-  **A native macOS task management software**
+  **Finally have peace in your mind**
 
 
    [![Stars](https://img.shields.io/github/stars/BennoCrafter/PieceOfMind?style=social)](https://github.com/BennoCrafter/PieceOfMind)
